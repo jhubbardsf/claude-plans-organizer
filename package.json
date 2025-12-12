@@ -1,0 +1,28 @@
+{
+  "name": "claude-plans-organizer",
+  "version": "1.0.0",
+  "description": "A CLI tool to browse and manage Claude Code plans with human-readable names",
+  "module": "src/index.ts",
+  "type": "module",
+  "bin": {
+    "cpo": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.2",
+    "ora": "^9.0.0"
+  }
+}
