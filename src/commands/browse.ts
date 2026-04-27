@@ -4,7 +4,7 @@
 
 import { select, input } from "@inquirer/prompts";
 import chalk from "chalk";
-import type { PlanMetadata, PlanAction } from "../types/index.ts";
+import type { PlanMetadata, PlanAction, ListOptions } from "../types/index.ts";
 import { PlanService } from "../services/plans.ts";
 import { copyToClipboard } from "../utils/clipboard.ts";
 import {
@@ -17,12 +17,12 @@ import {
   truncate,
 } from "../utils/display.ts";
 
-export async function browseCommand(): Promise<void> {
+export async function browseCommand(options: Partial<ListOptions> = {}): Promise<void> {
   console.log(displayHeader());
 
   try {
     const service = new PlanService();
-    const plans = await service.getAllPlans();
+    const plans = await service.getAllPlans(options);
 
     if (plans.length === 0) {
       console.log(displayError(`No plans found in ${service.getPlansDir()}`));

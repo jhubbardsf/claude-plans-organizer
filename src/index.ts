@@ -26,7 +26,8 @@ program
 program
   .command("browse", { isDefault: true })
   .description("Interactive plan browser (default)")
-  .action(browseCommand);
+  .option("-c, --concurrency <n>", "Max parallel Claude CLI calls", "10")
+  .action((options) => browseCommand({ concurrency: parseInt(options.concurrency, 10) }));
 
 // List command
 program
@@ -38,6 +39,7 @@ program
   .option("-n, --limit <n>", "Limit number of results")
   .option("-t, --tag <tag>", "Filter by tag")
   .option("-j, --json", "Output as JSON")
+  .option("-c, --concurrency <n>", "Max parallel Claude CLI calls", "10")
   .action((options) => {
     listCommand({
       sortBy: options.sort as "date" | "name" | "size",
@@ -45,6 +47,7 @@ program
       limit: options.limit ? parseInt(options.limit, 10) : undefined,
       tag: options.tag,
       json: options.json,
+      concurrency: parseInt(options.concurrency, 10),
     });
   });
 

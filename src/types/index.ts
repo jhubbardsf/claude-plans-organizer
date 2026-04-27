@@ -70,6 +70,7 @@ export interface Config {
   editor: string;
   maxContentLength: number;
   analysisDelayMs: number;
+  concurrency: number;
 }
 
 /** Default configuration values */
@@ -80,6 +81,7 @@ export const DEFAULT_CONFIG: Config = {
   editor: process.env.EDITOR || "vim",
   maxContentLength: 4000,
   analysisDelayMs: 300,
+  concurrency: 10,
 };
 
 /** List command options */
@@ -90,6 +92,7 @@ export interface ListOptions {
   tag?: string;
   json?: boolean;
   resolveProjects?: boolean;
+  concurrency?: number;
 }
 
 /** Actions available after selecting a plan */

@@ -4,13 +4,14 @@
 
 import chalk from "chalk";
 import ora from "ora";
-import type { PlanMetadata, ListOptions, Result } from "../types/index.ts";
+import type { PlanMetadata, PlanFile, ListOptions, Result } from "../types/index.ts";
 import { ok, err, DEFAULT_CONFIG } from "../types/index.ts";
 import { CacheService } from "./cache.ts";
 import { ScannerService } from "./scanner.ts";
 import { AnalyzerService } from "./analyzer.ts";
 import { resolveProject } from "./project-resolver.ts";
 import { truncate } from "../utils/display.ts";
+import { createPool } from "../utils/concurrency.ts";
 
 export class PlanService {
   private cache: CacheService;
@@ -57,48 +58,36 @@ export class PlanService {
       const existingFilenames = new Set(planFiles.map((p) => p.filename));
       await this.cache.prune(existingFilenames);
 
-      // Analyze new/changed files with line-by-line progress
+      // Analyze new/changed files with parallel processing
       if (toAnalyze.length > 0) {
-        console.log(chalk.dim(`\nAnalyzing ${toAnalyze.length} new/changed files with Claude...\n`));
+        const concurrency = options.concurrency || DEFAULT_CONFIG.concurrency;
+        console.log(chalk.dim(`\nAnalyzing ${toAnalyze.length} new/changed files with Claude (${concurrency} parallel)...\n`));
 
-        for (let i = 0; i < toAnalyze.length; i++) {
-          const planFile = toAnalyze[i]!;
-          const progress = chalk.dim(`[${i + 1}/${toAnalyze.length}]`);
-          const filename = chalk.dim(truncate(planFile.filename, 40));
+        const pool = createPool(concurrency);
+        let completed = 0;
 
-          // Show what we're analyzing
-          process.stdout.write(`  ${progress} ${filename} `);
+        const analyzeOne = async (planFile: PlanFile): Promise<PlanMetadata> => {
+          const result = await pool.run(() => this.analyzer.analyze(planFile));
+          completed++;
 
-          const result = await this.analyzer.analyze(planFile);
+          // Print progress as each completes
+          const progress = chalk.dim(`[${completed}/${toAnalyze.length}]`);
+          const filename = chalk.dim(truncate(planFile.filename, 35));
 
           if (result.success) {
             await this.cache.set(result.data);
-            cached.push(result.data);
-            // Show success with the generated title
-            console.log(chalk.green("✓") + " " + chalk.white(result.data.title));
+            console.log(`  ${progress} ${filename} ${chalk.green("✓")} ${result.data.title}`);
+            return result.data;
           } else {
-            // On failure, create fallback metadata
-            const fallback: PlanMetadata = {
-              filename: planFile.filename,
-              checksum: planFile.checksum,
-              title: this.titleFromFilename(planFile.filename),
-              description: "Analysis failed - using filename",
-              tags: ["uncategorized"],
-              project: null,
-              analyzedAt: new Date(),
-              modifiedAt: planFile.modifiedAt,
-              sizeBytes: planFile.sizeBytes,
-            };
+            const fallback = this.createFallback(planFile);
             await this.cache.set(fallback);
-            cached.push(fallback);
-            console.log(chalk.yellow("⚠") + " " + chalk.dim("(using filename)"));
+            console.log(`  ${progress} ${filename} ${chalk.yellow("⚠")} ${chalk.dim("(using filename)")}`);
+            return fallback;
           }
+        };
 
-          // Delay between analyses to avoid rate limiting
-          if (i < toAnalyze.length - 1) {
-            await this.analyzer.delay();
-          }
-        }
+        const results = await Promise.all(toAnalyze.map(analyzeOne));
+        cached.push(...results);
         console.log(""); // Empty line after analysis
       }
 
@@ -207,27 +196,30 @@ export class PlanService {
       return 0;
     }
 
-    console.log(chalk.dim(`\nResolving projects for ${needsResolution.length} plans...\n`));
+    const concurrency = DEFAULT_CONFIG.concurrency;
+    console.log(chalk.dim(`\nResolving projects for ${needsResolution.length} plans (${concurrency} parallel)...\n`));
 
+    const pool = createPool(concurrency);
+    let completed = 0;
     let resolved = 0;
-    for (let i = 0; i < needsResolution.length; i++) {
-      const plan = needsResolution[i]!;
-      const progress = chalk.dim(`[${i + 1}/${needsResolution.length}]`);
 
-      process.stdout.write(`  ${progress} ${truncate(plan.title, 40)} `);
+    const resolveOne = async (plan: PlanMetadata): Promise<void> => {
+      const project = await pool.run(() => resolveProject(plan.filename));
+      completed++;
 
-      const project = await resolveProject(plan.filename);
+      const progress = chalk.dim(`[${completed}/${needsResolution.length}]`);
 
       if (project) {
         plan.project = project;
         await this.cache.set(plan);
         resolved++;
-        console.log(chalk.green("✓") + " " + chalk.magenta(this.shortProjectName(project)));
+        console.log(`  ${progress} ${truncate(plan.title, 40)} ${chalk.green("✓")} ${chalk.magenta(this.shortProjectName(project))}`);
       } else {
-        console.log(chalk.dim("· not found"));
+        console.log(`  ${progress} ${truncate(plan.title, 40)} ${chalk.dim("· not found")}`);
       }
-    }
+    };
 
+    await Promise.all(needsResolution.map(resolveOne));
     console.log("");
     return resolved;
   }
@@ -301,5 +293,19 @@ export class PlanService {
       .split("-")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
+  }
+
+  private createFallback(planFile: PlanFile): PlanMetadata {
+    return {
+      filename: planFile.filename,
+      checksum: planFile.checksum,
+      title: this.titleFromFilename(planFile.filename),
+      description: "Analysis failed - using filename",
+      tags: ["uncategorized"],
+      project: null,
+      analyzedAt: new Date(),
+      modifiedAt: planFile.modifiedAt,
+      sizeBytes: planFile.sizeBytes,
+    };
   }
 }
