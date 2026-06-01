@@ -344,6 +344,37 @@ src/
     └── display.ts       # Terminal formatting helpers
 ```
 
+Top-level docs and assets:
+
+```
+README.md            # User-facing documentation (installation, usage, all commands)
+LICENSE              # MIT
+docs/
+└── index.html       # GitHub Pages landing page (single self-contained file)
+```
+
+## Documentation & Website
+
+- **`README.md`** is the canonical user-facing reference. Keep its command list, flags, and
+  example output in sync with `src/` whenever behavior changes. The output samples (cold start,
+  warm run, list, stats) are copied from the real chalk/inquirer/ora output, so update them if
+  `src/utils/display.ts` or the command flows change.
+- **`docs/index.html`** is the marketing/landing site, served via GitHub Pages from the `/docs`
+  folder (Settings → Pages → Branch `master`, folder `/docs`). It is a single self-contained
+  file: inline CSS, inline JS, no build step. It deliberately mirrors the visual system of the
+  sibling tools `sopsx` and `aws-sso-refresh` (dark theme, orange `#f97316` accent, Inter +
+  JetBrains Mono) so the three read as a family.
+- The "Watch it think" block on the site is a **pure HTML/CSS/JS animated terminal** (no GIF, no
+  external asset). The animation is a `setTimeout`-driven state machine in the inline `<script>`:
+  it types `cpo`, runs an ora-style spinner, then streams the real cold-start analysis lines
+  (cryptic `1733…-hash.md` filename → green `✓` → Claude-generated title) before settling on the
+  interactive select list. It is gated by `IntersectionObserver` (only animates while in view)
+  and honors `prefers-reduced-motion` (renders a static final frame). If you change the real CLI
+  output format, update the `PLANS`/`ROWS` arrays and the `run()` sequence to match.
+- A standalone animated `docs/demo.gif` is embedded at the top of the README so the README (which
+  cannot run JS) also shows the tool in motion. It is generated from the same animation; regenerate
+  it if the demo changes.
+
 ## Dependencies Overview
 
 - **commander**: CLI argument parsing and subcommands

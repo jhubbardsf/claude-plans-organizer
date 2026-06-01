@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Plans Organizer: browse your Claude Code plans by name, not by hash</title>
+  <meta name="description" content="cpo turns the cryptic timestamp-hash files in ~/.claude/plans into a searchable library with AI-generated titles, descriptions, and tags. Cached, so the second run is instant.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Claude Plans Organizer: browse your Claude Code plans by name, not by hash">
+  <meta property="og:description" content="cpo gives every plan in ~/.claude/plans a human-readable title, description, and tags using the Claude CLI, then caches it so the next run is instant.">
+  <meta property="og:url" content="https://jhubbardsf.github.io/claude-plans-organizer/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface-2: #1a1a1a;
+      --border: #262626;
+      --text: #fafafa;
+      --text-muted: #a1a1a1;
+      --text-dim: #6b6b6b;
+      --accent: #f97316;
+      --accent-dim: #ea580c;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --cyan: #38bdf8;
+      --magenta: #c084fc;
+      --red: #ef4444;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    a { color: var(--accent); }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 84px 0 56px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .badge .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5.2vw, 3.1rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 18px;
+    }
+
+    h1 code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+    }
+
+    .tagline {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 36px;
+    }
+
+    .install-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      max-width: 680px;
+      margin: 0 auto 14px;
+    }
+
+    .install-box code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow-x: auto;
+      text-align: left;
+      scrollbar-width: thin;
+    }
+
+    .install-box code .prefix { color: var(--text-dim); user-select: none; }
+
+    .copy-btn {
+      background: var(--accent);
+      color: #1a1106;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: var(--accent-dim); }
+    .copy-btn.copied { background: var(--green); color: #06210f; }
+
+    .req-line {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+    .req-line code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+    }
+
+    /* ---------- Section scaffolding ---------- */
+    section.block {
+      padding: 56px 0;
+      border-top: 1px solid var(--border);
+    }
+    .section-title {
+      text-align: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 560px;
+      margin: 0 auto 36px;
+      font-size: 1rem;
+    }
+
+    /* ---------- Problem / Solution ---------- */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 680px) { .compare-grid { grid-template-columns: 1fr; } }
+
+    .compare-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .compare-card.before { border-color: #4a2222; }
+    .compare-card.after  { border-color: #1f3d2a; }
+
+    .compare-card h3 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+    .compare-card.before h3 { color: var(--red); }
+    .compare-card.after h3  { color: var(--green); }
+
+    .compare-card pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      overflow-x: auto;
+      color: var(--text-muted);
+      scrollbar-width: thin;
+    }
+    .compare-card .c-prompt { color: var(--accent); }
+    .compare-card .c-dim    { color: var(--text-dim); }
+    .compare-card .c-hash   { color: #7a6a55; }
+    .compare-card .c-title  { color: var(--text); }
+    .compare-card .c-ok     { color: var(--green); }
+    .compare-card .c-date   { color: var(--yellow); }
+    .compare-card .c-tag    { color: var(--cyan); }
+    .compare-card .c-num    { color: var(--text-dim); }
+
+    /* ---------- Animated terminal ---------- */
+    .cpo-terminal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 720px;
+      margin: 0 auto;
+      box-shadow: 0 24px 60px -28px rgba(0,0,0,0.85);
+    }
+    .cpo-term-header {
+      background: var(--surface-2);
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cpo-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .cpo-dot.red { background: #ff5f57; }
+    .cpo-dot.yellow { background: #febc2e; }
+    .cpo-dot.green { background: #28c840; }
+    .cpo-term-title {
+      flex: 1;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-right: 52px;
+    }
+
+    .cpo-term-body {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      padding: 16px 18px;
+      height: 360px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
+    }
+    .cpo-term-body::-webkit-scrollbar { display: none; }
+    .cpo-term-body .ln {
+      white-space: pre;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cpo-prompt { color: var(--accent); }
+    .cpo-cmd    { color: var(--text); }
+    .cpo-dim    { color: var(--text-dim); }
+    .cpo-head   { color: var(--cyan); font-weight: 600; }
+    .cpo-ok     { color: var(--green); }
+    .cpo-warn   { color: var(--yellow); }
+    .cpo-title  { color: var(--text); }
+    .cpo-q      { color: var(--green); }
+    .cpo-date-today { color: var(--green); }
+    .cpo-date-rel   { color: var(--yellow); }
+    .cpo-size   { color: var(--text-dim); }
+    .cpo-row-sel { color: var(--cyan); }
+    .cpo-row-sel .cpo-title { color: var(--cyan); }
+
+    .cpo-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 15px;
+      background: var(--text);
+      vertical-align: text-bottom;
+      animation: cpo-blink 1s steps(1) infinite;
+    }
+    @keyframes cpo-blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+
+    .demo-caption {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13.5px;
+      margin-top: 18px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ---------- Features ---------- */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    @media (max-width: 680px) { .feature-grid { grid-template-columns: 1fr; } }
+
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .feature .ico { font-size: 1.6rem; margin-bottom: 12px; display: block; }
+    .feature h3 { font-size: 1rem; font-weight: 600; margin-bottom: 7px; }
+    .feature p { font-size: 14px; color: var(--text-muted); }
+    .feature code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      color: var(--accent);
+      background: var(--surface-2);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    /* ---------- Commands ---------- */
+    .cmd-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .cmd-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 16px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      align-items: baseline;
+    }
+    .cmd-row:first-child { border-top: none; }
+    .cmd-row code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .cmd-row .alias { color: var(--text-dim); font-size: 12px; }
+    .cmd-row p { font-size: 14px; color: var(--text-muted); }
+    @media (max-width: 600px) {
+      .cmd-row { grid-template-columns: 1fr; gap: 4px; }
+    }
+
+    /* ---------- CTA ---------- */
+    .cta { text-align: center; }
+    .cta h2 { font-size: 1.5rem; margin-bottom: 22px; }
+    .cta-buttons {
+      display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 22px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #1a1106; }
+    .btn-primary:hover { background: var(--accent-dim); }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+
+    /* ---------- Footer ---------- */
+    footer {
+      padding: 40px 0;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 14px;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--text-muted); text-decoration: none; }
+    footer a:hover { color: var(--text); text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="badge"><span class="dot"></span> Claude Code · macOS &amp; Linux</div>
+      <h1>Browse your plans by name,<br>not by hash</h1>
+      <p class="tagline">
+        <code>cpo</code> reads the cryptic timestamp-hash files in <code>~/.claude/plans</code>,
+        gives each one a real title, description, and tags, and caches it so the next run is instant.
+      </p>
+      <div class="install-box">
+        <code><span class="prefix">$ </span>git clone https://github.com/jhubbardsf/claude-plans-organizer &amp;&amp; cd claude-plans-organizer &amp;&amp; bun install &amp;&amp; bun link</code>
+        <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+      </div>
+      <p class="req-line">Requires <code>bun</code> and a <code>claude-h</code> shell alias for the Claude CLI. <a href="https://github.com/jhubbardsf/claude-plans-organizer#installation">Full install &rarr;</a></p>
+    </section>
+
+    <!-- Problem / Solution -->
+    <section class="block">
+      <h2 class="section-title">The plans folder problem</h2>
+      <p class="section-sub">Claude Code names every saved plan with a timestamp and a hash. After a week you have a folder full of files you can't tell apart.</p>
+      <div class="compare-grid">
+        <div class="compare-card before">
+          <h3>Before</h3>
+<pre><span class="c-prompt">$</span> ls ~/.claude/plans
+<span class="c-hash">1733956987164-bdb8f1b2db294f8a.md</span>
+<span class="c-hash">1733951220933-a1c9f0e2bb7d419c.md</span>
+<span class="c-hash">1733889104551-77de0b9c12fa4801.md</span>
+<span class="c-hash">1733844511287-3e1b8a9c44d0f2bb.md</span>
+<span class="c-hash">1733799820145-9f0c2d7e6a1b3577.md</span>
+
+<span class="c-dim"># Which one was the auth plan? No idea.</span></pre>
+        </div>
+        <div class="compare-card after">
+          <h3>After</h3>
+<pre><span class="c-prompt">$</span> cpo list
+<span class="c-num"> 1.</span> <span class="c-title">JWT Authentication Implementation</span> <span class="c-dim">·</span> <span class="c-date">today</span> <span class="c-tag">#auth</span>
+<span class="c-num"> 2.</span> <span class="c-title">Postgres Schema Migration</span> <span class="c-dim">·</span> <span class="c-date">today</span> <span class="c-tag">#database</span>
+<span class="c-num"> 3.</span> <span class="c-title">React Server Components Refactor</span> <span class="c-tag">#ui</span>
+<span class="c-num"> 4.</span> <span class="c-title">Stripe Webhook Retry Handler</span> <span class="c-tag">#api</span>
+<span class="c-num"> 5.</span> <span class="c-title">Redis Rate Limiter</span> <span class="c-tag">#perf</span>
+
+<span class="c-dim"># Found it.</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Animated terminal demo -->
+    <section class="block">
+      <h2 class="section-title">Watch it think</h2>
+      <p class="section-sub">First run: <code style="font-family:'JetBrains Mono',monospace;font-size:0.85em;color:var(--accent)">cpo</code> scans the folder, hands each new plan to Claude in parallel, and streams back readable titles. Every later run loads from cache in a blink.</p>
+      <div class="cpo-terminal" id="cpoTerminal">
+        <div class="cpo-term-header">
+          <span class="cpo-dot red"></span>
+          <span class="cpo-dot yellow"></span>
+          <span class="cpo-dot green"></span>
+          <span class="cpo-term-title">cpo · ~/.claude/plans</span>
+        </div>
+        <div class="cpo-term-body" id="cpoBody"></div>
+      </div>
+      <p class="demo-caption">Cryptic timestamps go in. A browsable, tagged library comes out, and the checksum cache means you only ever pay for analysis once per plan.</p>
+    </section>
+
+    <!-- Features -->
+    <section class="block">
+      <h2 class="section-title">What you get</h2>
+      <div class="feature-grid">
+        <div class="feature">
+          <span class="ico">🤖</span>
+          <h3>AI-written metadata</h3>
+          <p>The Claude CLI reads each plan and returns a concise title, a one-line summary, and 1&ndash;3 tags.</p>
+        </div>
+        <div class="feature">
+          <span class="ico">⚡</span>
+          <h3>Instant after first run</h3>
+          <p>Metadata is cached by file checksum. Unchanged plans are never re-analyzed, so warm runs are immediate.</p>
+        </div>
+        <div class="feature">
+          <span class="ico">🧵</span>
+          <h3>Parallel analysis</h3>
+          <p>New plans are analyzed concurrently (10 workers by default). Tune it with <code>--concurrency</code>.</p>
+        </div>
+        <div class="feature">
+          <span class="ico">🧭</span>
+          <h3>Interactive browser</h3>
+          <p>Arrow-key through your plans, then view, copy, export, or open any one in your editor.</p>
+        </div>
+        <div class="feature">
+          <span class="ico">🏷️</span>
+          <h3>Sort, filter, search</h3>
+          <p>Sort by date, name, or size. Filter by tag. Match plans by partial name or title.</p>
+        </div>
+        <div class="feature">
+          <span class="ico">🔧</span>
+          <h3>Scriptable output</h3>
+          <p><code>cpo list --json</code> pipes clean metadata straight into <code>jq</code> and the rest of your toolchain.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Commands -->
+    <section class="block">
+      <h2 class="section-title">Every command</h2>
+      <p class="section-sub">Eight subcommands. The default is the interactive browser, so plain <code style="font-family:'JetBrains Mono',monospace;font-size:0.85em;color:var(--accent)">cpo</code> just works.</p>
+      <div class="cmd-table">
+        <div class="cmd-row">
+          <div><code>cpo</code> <span class="alias">/ browse</span></div>
+          <p>Launch the interactive plan browser. This is the default command.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo list</code> <span class="alias">/ ls</span></div>
+          <p>Print a compact list of every plan. Supports <code style="background:none;padding:0">--sort</code>, <code style="background:none;padding:0">--reverse</code>, <code style="background:none;padding:0">--limit</code>, <code style="background:none;padding:0">--tag</code>, and <code style="background:none;padding:0">--json</code>.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo view &lt;plan&gt;</code> <span class="alias">/ show</span></div>
+          <p>Print a plan's full content. Accepts a partial filename or title match.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo copy &lt;plan&gt;</code> <span class="alias">/ cp</span></div>
+          <p>Copy a plan's content to the system clipboard.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo export &lt;plan&gt; [dest]</code> <span class="alias">/ save</span></div>
+          <p>Write a plan to a file. Defaults to the original filename in the current directory.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo refresh [plan]</code></div>
+          <p>Force re-analysis. Use <code style="background:none;padding:0">--all</code> to rebuild the entire cache, or pass one plan to refresh just that title.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo stats</code></div>
+          <p>Show cache statistics: total plans, cached plans, pending analysis, and paths.</p>
+        </div>
+        <div class="cmd-row">
+          <div><code>cpo projects</code></div>
+          <p>Resolve which project each plan came from by scanning session files. Slow, and cached after the first run.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="block cta">
+      <h2>Stop scrolling through hashes</h2>
+      <div class="cta-buttons">
+        <a href="https://github.com/jhubbardsf/claude-plans-organizer" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+        <a href="https://github.com/jhubbardsf/claude-plans-organizer#usage" class="btn btn-secondary">Read the docs</a>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="container">
+      Made by <a href="https://github.com/jhubbardsf">@jhubbardsf</a>
+      &nbsp;·&nbsp; MIT License
+      &nbsp;·&nbsp; Pairs well with <a href="https://github.com/jhubbardsf/sopsx">sopsx</a>
+      and <a href="https://github.com/jhubbardsf/aws-sso-refresh">aws-sso-refresh</a>
+    </div>
+  </footer>
+
+  <script>
+    function copyInstall(btn) {
+      const cmd = 'git clone https://github.com/jhubbardsf/claude-plans-organizer && cd claude-plans-organizer && bun install && bun link';
+      navigator.clipboard.writeText(cmd).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+
+    /* ---------------- Animated terminal ---------------- */
+    (function () {
+      const body = document.getElementById('cpoBody');
+      const term = document.getElementById('cpoTerminal');
+      if (!body) return;
+
+      // Real-looking data: machine filename -> Claude-generated title.
+      const PLANS = [
+        ['1733956987164-bdb8f1b2db294f', 'JWT Authentication Implementation'],
+        ['1733951220933-a1c9f0e2bb7d41', 'Postgres Schema Migration'],
+        ['1733889104551-77de0b9c12fa48', 'React Server Components Refactor'],
+        ['1733844511287-3e1b8a9c44d0f2', 'Stripe Webhook Retry Handler'],
+        ['1733799820145-9f0c2d7e6a1b35', 'Redis Rate Limiter'],
+        ['1733705133910-2c4a1f8b9e7d60', 'S3 Multipart Upload Pipeline'],
+        ['1733661007422-d8e3b5a1c9f742', 'Dark Mode Theming Pass'],
+        ['1733620948135-4b7e9c0a2d1f88', 'WebSocket Reconnect Logic'],
+        ['1733588210077-6a1d3f9b8c2e54', 'GitHub Actions CI Matrix'],
+        ['1733544889601-0e2b7c4a9d1f63', 'Pi Zero Home Egress Proxy'],
+        ['1733500771244-5c9a0e1b7d3f28', 'Sidebar Navigation Redesign'],
+        ['1733455610988-8d2f4a6c1b9e07', 'Email Verification Flow'],
+        ['1733289500412-7b3e1a9d5c0f46', 'Search Index Backfill Job'],
+        ['1733120771010-09bb3c1aa5e240', 'CLI Output Formatting Pass'],
+      ];
+      // Browser rows: title, date-html, size.
+      const ROWS = [
+        ['JWT Authentication Implementation', '<span class="cpo-date-today">today</span>', '8.2K'],
+        ['Postgres Schema Migration', '<span class="cpo-date-today">today</span>', '12.1K'],
+        ['React Server Components Refactor', '<span class="cpo-date-rel">2d ago</span>', '6.5K'],
+        ['Stripe Webhook Retry Handler', '<span class="cpo-date-rel">2d ago</span>', '9.4K'],
+        ['Redis Rate Limiter', '<span class="cpo-date-rel">3d ago</span>', '4.1K'],
+      ];
+
+      const SPIN = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let gen = 0;
+      let visible = false;
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+      function add(html) {
+        const div = document.createElement('div');
+        div.className = 'ln';
+        div.innerHTML = html;
+        body.appendChild(div);
+        body.scrollTop = body.scrollHeight;
+        return div;
+      }
+
+      async function type(el, text, per, myGen) {
+        for (let i = 0; i < text.length && gen === myGen; i++) {
+          el.textContent += text[i];
+          await sleep(per);
+        }
+      }
+
+      function rowHtml(r, selected) {
+        const arrow = selected ? '<span class="cpo-row-sel">❯ </span>' : '  ';
+        const cls = selected ? 'cpo-row-sel' : '';
+        return `${arrow}<span class="${cls}"><span class="cpo-dim"> ${ROWS.indexOf(r)+1}.</span> <span class="cpo-title">${r[0]}</span> <span class="cpo-dim">·</span> ${r[1]} <span class="cpo-dim">·</span> <span class="cpo-size">${r[2]}</span></span>`;
+      }
+
+      function staticFrame() {
+        body.innerHTML = '';
+        add('<span class="cpo-prompt">$</span> <span class="cpo-cmd">cpo</span>');
+        add('&nbsp;');
+        add('<span class="cpo-head">  Claude Plans Organizer</span>');
+        add('<span class="cpo-dim">  Browse your Claude Code plans with human-readable names</span>');
+        add('&nbsp;');
+        add('<span class="cpo-ok">✔</span> Found 14 plan files');
+        add('<span class="cpo-ok">✓</span> Loaded 14 plans');
+        add('&nbsp;');
+        add('<span class="cpo-q">?</span> Select a plan: <span class="cpo-dim">(Use arrow keys)</span>');
+        ROWS.forEach((r, i) => add(rowHtml(r, i === 0)));
+        add('  <span class="cpo-dim">(Exit)</span>');
+      }
+
+      async function run(myGen) {
+        while (gen === myGen) {
+          body.innerHTML = '';
+
+          // 1. command
+          const cmd = add('<span class="cpo-prompt">$</span> <span class="cpo-cmd"></span><span class="cpo-cursor"></span>');
+          await sleep(520);
+          await type(cmd.querySelector('.cpo-cmd'), 'cpo', 95, myGen);
+          await sleep(430);
+          const cur = cmd.querySelector('.cpo-cursor'); if (cur) cur.remove();
+          await sleep(160);
+
+          // 2. header
+          add('&nbsp;');
+          add('<span class="cpo-head">  Claude Plans Organizer</span>');
+          add('<span class="cpo-dim">  Browse your Claude Code plans with human-readable names</span>');
+          add('&nbsp;');
+          await sleep(280);
+
+          // 3. scanning spinner
+          const scan = add('<span class="cpo-dim cpo-spin">⠋</span> Scanning plans...');
+          const spinEl = scan.querySelector('.cpo-spin');
+          let s = 0;
+          const spin = setInterval(() => { if (spinEl) spinEl.textContent = SPIN[s++ % SPIN.length]; }, 80);
+          await sleep(920);
+          clearInterval(spin);
+          scan.innerHTML = '<span class="cpo-ok">✔</span> Found 14 plan files';
+          add('&nbsp;');
+          await sleep(340);
+
+          // 4. analyzing: the magic, hash in and title out
+          add('<span class="cpo-dim">Analyzing 14 new/changed files with Claude (10 parallel)...</span>');
+          add('&nbsp;');
+          await sleep(240);
+          for (let i = 0; i < PLANS.length && gen === myGen; i++) {
+            const [hash, title] = PLANS[i];
+            add(`  <span class="cpo-dim">[${i + 1}/14]</span> <span class="cpo-dim">${hash}…</span> <span class="cpo-ok">✓</span> <span class="cpo-title">${title}</span>`);
+            await sleep(150);
+          }
+          add('&nbsp;');
+          await sleep(260);
+          add('<span class="cpo-ok">✓</span> Loaded 14 plans');
+          add('&nbsp;');
+          await sleep(420);
+
+          // 5. interactive select
+          add('<span class="cpo-q">?</span> Select a plan: <span class="cpo-dim">(Use arrow keys)</span>');
+          const rowEls = ROWS.map((r, i) => add(rowHtml(r, i === 0)));
+          add('  <span class="cpo-dim">(Exit)</span>');
+          await sleep(1100);
+
+          // 6. a little arrow-key life
+          for (let sel = 1; sel < 3 && gen === myGen; sel++) {
+            rowEls.forEach((el, i) => { el.innerHTML = rowHtml(ROWS[i], i === sel); });
+            body.scrollTop = body.scrollHeight;
+            await sleep(750);
+          }
+          await sleep(1500);
+        }
+      }
+
+      if (reduce) { staticFrame(); return; }
+
+      // Animate only while the terminal is in view. A generation token guarantees
+      // at most one loop ever runs, even if you scroll away and back quickly.
+      const io = new IntersectionObserver((entries) => {
+        const isVis = entries[0] && entries[0].isIntersecting;
+        if (isVis && !visible) { visible = true; run(++gen); }
+        else if (!isVis && visible) { visible = false; gen++; }
+      }, { threshold: 0.2 });
+      io.observe(term);
+    })();
+  </script>
+</body>
+</html>
