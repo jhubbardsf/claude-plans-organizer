@@ -380,8 +380,3 @@ MIT
 ## Author
 
 Built with Claude Code by Josh Hubbard ([@jhubbardsf](https://github.com/jhubbardsf)).
-
-### Pairs well with
-
-- **[sopsx](https://github.com/jhubbardsf/sopsx)**: SOPS wrapper that auto-detects the right `AWS_PROFILE` from KMS keys
-- **[aws-sso-refresh](https://github.com/jhubbardsf/aws-sso-refresh)**: keeps AWS SSO sessions refreshed before they expire
